@@ -4,55 +4,23 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Print
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
+	handler := &MainCommand{
+		commands: make(map[string]func([]string) error),
+	}
+
+	handler.Register("exit", handler.exit)
+	handler.Register("echo", handler.echo)
+	handler.Register("type", handler.TypeCmd)
 
 	for {
 		fmt.Print("$ ")
-		command, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading input:", err)
-			os.Exit(1)
-		}
-
-		CommandsHandler(command)
+		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		handler.Handle(line)
 	}
-}
-
-func getCommand(commandStr string) (string, error) {
-	trimmed := strings.TrimSpace(commandStr)
-	if trimmed == "" {
-		return "", fmt.Errorf("empty command")
-	}
-	split := strings.Split(trimmed, " ")
-	if len(split) == 0 {
-		return "", fmt.Errorf("empty command")
-	}
-	return split[0], nil
-}
-
-func CommandsHandler(commandStr string) {
-
-	command, err := getCommand(commandStr)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		return
-	}
-
-	switch command {
-	case "echo":
-		args := strings.TrimSpace(commandStr[len(command):])
-		fmt.Println(args)
-	case "exit":
-		os.Exit(0)
-	default:
-		fmt.Println(command + ": command not found")
-	}
-
 }
