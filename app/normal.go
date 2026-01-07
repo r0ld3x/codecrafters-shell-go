@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -12,9 +13,13 @@ func (h *MainCommand) TypeCmd(args []string) error {
 	}
 
 	name := args[0]
-
 	if _, ok := h.commands[name]; ok {
 		fmt.Println(name + " is a shell builtin")
+		return nil
+	}
+	data, err := exec.LookPath(name)
+	if data != "" && err == nil {
+		fmt.Println(name + " is " + data)
 		return nil
 	}
 
