@@ -12,6 +12,8 @@ var _ = fmt.Print
 
 func main() {
 	// TODO: Uncomment the code below to pass the first stage
+
+getInput:
 	fmt.Print("$ ")
 	command, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil {
@@ -24,6 +26,7 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println(cmd + ": command not found")
+	goto getInput
 }
 
 func getCommand(commandStr string) (string, error) {
