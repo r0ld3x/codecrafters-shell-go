@@ -11,22 +11,18 @@ import (
 var _ = fmt.Print
 
 func main() {
-	// TODO: Uncomment the code below to pass the first stage
+	reader := bufio.NewReader(os.Stdin)
 
-getInput:
-	fmt.Print("$ ")
-	command, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error reading input:", err)
-		os.Exit(1)
+	for {
+		fmt.Print("$ ")
+		command, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error reading input:", err)
+			os.Exit(1)
+		}
+
+		CommandsHandler(command)
 	}
-	cmd, err := getCommand(command)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		os.Exit(1)
-	}
-	fmt.Println(cmd + ": command not found")
-	goto getInput
 }
 
 func getCommand(commandStr string) (string, error) {
@@ -39,4 +35,23 @@ func getCommand(commandStr string) (string, error) {
 		return "", fmt.Errorf("empty command")
 	}
 	return split[0], nil
+}
+
+func CommandsHandler(commandStr string) {
+
+	command, err := getCommand(commandStr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		return
+	}
+
+	switch command {
+	case "echo":
+		fmt.Println("Echo command executed")
+	case "exit":
+		os.Exit(0)
+	default:
+		fmt.Println(command + ": command not found")
+	}
+
 }
