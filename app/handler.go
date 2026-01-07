@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -18,16 +20,21 @@ func (h *MainCommand) Register(
 
 func (h *MainCommand) Handle(input string) {
 	fields := strings.Fields(input)
-	if len(fields) == 0 {
-		return
-	}
 
 	cmdName := fields[0]
 	args := fields[1:]
 
 	cmd, ok := h.commands[cmdName]
 	if !ok {
-		fmt.Println(cmdName + ": command not found")
+		cmd := exec.Command(cmdName, args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		err := cmd.Run()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: command not found\n", cmdName)
+		}
+
 		return
 	}
 
