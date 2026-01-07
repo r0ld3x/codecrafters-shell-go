@@ -17,6 +17,7 @@ func main() {
 	handler.Register("exit", handler.exit)
 	handler.Register("echo", handler.echo)
 	handler.Register("type", handler.TypeCmd)
+	handler.Register("pwd", handler.pwd)
 	// handler.Register("ls", handler.ls)
 
 	for {
