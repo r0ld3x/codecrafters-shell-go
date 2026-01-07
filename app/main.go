@@ -47,7 +47,8 @@ func CommandsHandler(commandStr string) {
 
 	switch command {
 	case "echo":
-		fmt.Println("Echo command executed")
+		args := strings.TrimSpace(commandStr[len(command):])
+		fmt.Println(args)
 	case "exit":
 		os.Exit(0)
 	default:
