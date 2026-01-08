@@ -82,12 +82,31 @@ func extractArguments(input string) ([]string, error) {
 			continue
 
 		case '\\':
-			// Escape only works OUTSIDE quotes
-			if !inSingleQuote && !inDoubleQuote {
-				escaped = true
+			if inSingleQuote {
+				// Literal backslash inside single quotes
+				current.WriteByte(ch)
 				continue
 			}
-			current.WriteByte(ch)
+
+			if inDoubleQuote {
+				// Peek next char for special handling
+				if i+1 < len(input) {
+					next := input[i+1]
+					if next == '"' || next == '\\' {
+						// Escape " or \
+						current.WriteByte(next)
+						i++
+						continue
+					}
+				}
+				// Otherwise keep backslash literally
+				current.WriteByte(ch)
+				continue
+			}
+
+			// Outside quotes: escape next character
+			escaped = true
+			continue
 
 		case '\'':
 			if !inDoubleQuote {
@@ -116,7 +135,6 @@ func extractArguments(input string) ([]string, error) {
 	}
 
 	if escaped {
-		// Trailing backslash escapes nothing → literal backslash
 		current.WriteByte('\\')
 	}
 
