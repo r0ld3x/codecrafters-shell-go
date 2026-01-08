@@ -21,7 +21,7 @@ func (h *MainCommand) Register(
 }
 
 func (h *MainCommand) Handle(input string) {
-	fields, err := extractQuotedArguments(input)
+	fields, err := extractArguments(input)
 	if err != nil {
 		return
 	}
@@ -51,12 +51,14 @@ func (h *MainCommand) Handle(input string) {
 		fmt.Println(err)
 	}
 }
-func extractQuotedArguments(input string) ([]string, error) {
+
+func extractArguments(input string) ([]string, error) {
 	var args []string
 	var current strings.Builder
 
 	inSingleQuote := false
 	inDoubleQuote := false
+	escaped := false
 
 	flush := func() {
 		if current.Len() > 0 {
@@ -68,10 +70,24 @@ func extractQuotedArguments(input string) ([]string, error) {
 	for i := 0; i < len(input); i++ {
 		ch := input[i]
 
+		// Handle escaped character
+		if escaped {
+			current.WriteByte(ch)
+			escaped = false
+			continue
+		}
+
 		switch ch {
 		case '\r', '\n':
-			// Ignore line endings
 			continue
+
+		case '\\':
+			// Escape only works OUTSIDE quotes
+			if !inSingleQuote && !inDoubleQuote {
+				escaped = true
+				continue
+			}
+			current.WriteByte(ch)
 
 		case '\'':
 			if !inDoubleQuote {
@@ -97,6 +113,11 @@ func extractQuotedArguments(input string) ([]string, error) {
 		default:
 			current.WriteByte(ch)
 		}
+	}
+
+	if escaped {
+		// Trailing backslash escapes nothing → literal backslash
+		current.WriteByte('\\')
 	}
 
 	if inSingleQuote {
