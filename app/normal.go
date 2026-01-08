@@ -28,7 +28,8 @@ func (h *MainCommand) TypeCmd(args []string) error {
 }
 
 func (h *MainCommand) echo(args []string) error {
-	fmt.Println(strings.Join(args, " "))
+	fmt.Fprintf(os.Stdout, "%s\n", strings.Join(args, " "))
+
 	return nil
 }
 
