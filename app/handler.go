@@ -21,7 +21,7 @@ func (h *MainCommand) Register(
 }
 
 func (h *MainCommand) Handle(input string) {
-	fields, err := parseSingleQuotes(input)
+	fields, err := extractQuotedArguments(input)
 	if err != nil {
 		return
 	}
@@ -51,28 +51,47 @@ func (h *MainCommand) Handle(input string) {
 		fmt.Println(err)
 	}
 }
-func parseSingleQuotes(input string) ([]string, error) {
+func extractQuotedArguments(input string) ([]string, error) {
 	var args []string
 	var current strings.Builder
+
 	inSingleQuote := false
+	inDoubleQuote := false
+
+	flush := func() {
+		if current.Len() > 0 {
+			args = append(args, current.String())
+			current.Reset()
+		}
+	}
 
 	for i := 0; i < len(input); i++ {
 		ch := input[i]
 
 		switch ch {
 		case '\r', '\n':
-			// Ignore line endings completely
+			// Ignore line endings
 			continue
 
 		case '\'':
-			inSingleQuote = !inSingleQuote
+			if !inDoubleQuote {
+				inSingleQuote = !inSingleQuote
+				continue
+			}
+			current.WriteByte(ch)
+
+		case '"':
+			if !inSingleQuote {
+				inDoubleQuote = !inDoubleQuote
+				continue
+			}
+			current.WriteByte(ch)
 
 		case ' ', '\t':
-			if inSingleQuote {
+			if inSingleQuote || inDoubleQuote {
 				current.WriteByte(ch)
-			} else if current.Len() > 0 {
-				args = append(args, current.String())
-				current.Reset()
+			} else {
+				flush()
 			}
 
 		default:
@@ -83,10 +102,10 @@ func parseSingleQuotes(input string) ([]string, error) {
 	if inSingleQuote {
 		return nil, fmt.Errorf("unterminated single quote")
 	}
-
-	if current.Len() > 0 {
-		args = append(args, current.String())
+	if inDoubleQuote {
+		return nil, fmt.Errorf("unterminated double quote")
 	}
 
+	flush()
 	return args, nil
 }
