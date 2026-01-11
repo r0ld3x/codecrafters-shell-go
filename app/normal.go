@@ -28,11 +28,9 @@ func (h *MainCommand) TypeCmd(args []string) error {
 }
 
 func (h *MainCommand) echo(args []string) error {
-	fmt.Fprintf(os.Stdout, "%s\n", strings.Join(args, " "))
-
+	fmt.Fprintf(h.out, "%s\n", strings.Join(args, " "))
 	return nil
 }
-
 func (h *MainCommand) exit(args []string) error {
 	os.Exit(0)
 	return nil

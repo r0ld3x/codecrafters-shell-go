@@ -12,6 +12,7 @@ var _ = fmt.Print
 func main() {
 	handler := &MainCommand{
 		commands: make(map[string]func([]string) error),
+		out:      os.Stdout,
 	}
 
 	handler.Register("exit", handler.exit)
