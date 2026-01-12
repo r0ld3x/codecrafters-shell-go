@@ -64,6 +64,7 @@ func (h *MainCommand) readLineRaw() string {
 			newInput := h.autocomplete(old)
 
 			if newInput == old {
+				fmt.Print("\x07")
 				break
 			}
 
