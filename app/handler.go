@@ -21,6 +21,7 @@ type MainCommand struct {
 	errFile string
 
 	isOutAppend   bool // >>
+	isErrAppend   bool // 2>>
 	isOutRedirect bool // >
 	isErrRedirect bool // 2>
 
@@ -39,7 +40,7 @@ func (h *MainCommand) Handle(input string) {
 		return
 	}
 
-	args, h.outFile, h.errFile, h.isOutAppend = extractRedirectionInfo(args)
+	args, h.outFile, h.errFile = h.extractRedirectionInfo(args)
 
 	cleanup, err := h.ApplyRedirection()
 	if err != nil {
@@ -180,32 +181,39 @@ func extractArguments(input string) ([]string, error) {
 	return args, nil
 }
 
-func extractRedirectionInfo(args []string) (
+func (m *MainCommand) extractRedirectionInfo(args []string) (
 	clean []string,
 	outFile string,
 	errFile string,
-	isOutAppend bool,
+
 ) {
 	for i := range args {
 		switch args[i] {
 		case ">", "1>":
 			if i+1 < len(args) {
 				outFile = args[i+1]
-				return args[:i], outFile, errFile, false
+				return args[:i], outFile, errFile
 			}
 		case "2>":
 			if i+1 < len(args) {
 				errFile = args[i+1]
-				return args[:i], outFile, errFile, false
+				return args[:i], outFile, errFile
 			}
 		case ">>", "1>>":
 			if i+1 < len(args) {
 				outFile = args[i+1]
-				return args[:i], outFile, errFile, true
+				m.isOutAppend = true
+				return args[:i], outFile, errFile
+			}
+		case "2>>":
+			if i+1 < len(args) {
+				errFile = args[i+1]
+				m.isErrAppend = true
+				return args[:i], outFile, errFile
 			}
 		}
 	}
-	return args, "", "", false
+	return args, "", ""
 }
 
 func (h *MainCommand) ApplyRedirection() (func(), error) {
@@ -215,16 +223,16 @@ func (h *MainCommand) ApplyRedirection() (func(), error) {
 
 	var cleanup []func()
 
-	flags := os.O_CREATE | os.O_WRONLY
+	flagsOut := os.O_CREATE | os.O_WRONLY
 	if h.isOutAppend {
-		flags |= os.O_APPEND
+		flagsOut |= os.O_APPEND
 	} else {
-		flags |= os.O_TRUNC
+		flagsOut |= os.O_TRUNC
 	}
 	if h.outFile != "" {
 		f, err := os.OpenFile(
 			h.outFile,
-			flags,
+			flagsOut,
 			0644,
 		)
 		if err != nil {
@@ -234,10 +242,17 @@ func (h *MainCommand) ApplyRedirection() (func(), error) {
 		cleanup = append(cleanup, func() { f.Close() })
 	}
 
+	flagsErr := os.O_CREATE | os.O_WRONLY
+	if h.isErrAppend {
+		flagsErr |= os.O_APPEND
+	} else {
+		flagsErr |= os.O_TRUNC
+	}
+
 	if h.errFile != "" {
 		f, err := os.OpenFile(
 			h.errFile,
-			os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
+			flagsErr,
 			0644,
 		)
 		if err != nil {
