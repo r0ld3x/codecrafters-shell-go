@@ -62,45 +62,41 @@ func (h *MainCommand) readLineRaw() string {
 			return string(buf)
 
 		case '\t':
-			prefix, start := lastToken(buf)
-
-			// only complete first token in this stage
-			if start != 0 {
-				fmt.Print("\x07")
-				break
-			}
-
-			matches := h.findMatches(prefix)
-
+			old := string(buf)
+			matches := h.findMatches(old)
 			if len(matches) == 0 {
 				fmt.Print("\x07")
+				h.lastWasTab = false
 				break
 			}
 
-			// exactly one match → full completion + space
 			if len(matches) == 1 {
+				newInput := matches[0] + " "
+
 				for range buf {
 					fmt.Print("\b \b")
 				}
-				buf = []byte(matches[0] + " ")
-				fmt.Print(string(buf))
+
+				buf = []byte(newInput)
+				fmt.Print(newInput)
+
+				h.lastWasTab = false
 				break
 			}
 
-			// multiple matches → LCP logic
-			lcp := longestCommonPrefix(matches)
-
-			if len(lcp) > len(prefix) {
-				for range buf {
-					fmt.Print("\b \b")
+			if h.lastWasTab {
+				fmt.Print("\r\n")
+				for _, m := range matches {
+					fmt.Print(m, "  ")
 				}
-				buf = []byte(lcp)
-				fmt.Print(string(buf))
-				break
+				fmt.Print("\r\n$ ", string(buf))
+				h.lastWasTab = false
+			} else {
+				lcp := longestCommonPrefix(matches)
+				fmt.Println(lcp)
+				fmt.Print("\x07")
+				h.lastWasTab = true
 			}
-
-			// ambiguous, no extension → bell or wait for TAB TAB
-			fmt.Print("\x07")
 
 		case 127: // Backspace
 			if len(buf) > 0 {
@@ -116,13 +112,13 @@ func (h *MainCommand) readLineRaw() string {
 	}
 }
 
-func lastToken(input []byte) (prefix string, start int) {
+func lastToken(input string) (prefix string, start int) {
 	for i := len(input) - 1; i >= 0; i-- {
 		if input[i] == ' ' {
-			return string(input[i+1:]), i + 1
+			return input[i+1:], i + 1
 		}
 	}
-	return string(input), 0
+	return input, 0
 }
 
 func getExecutablesFromPath() map[string]struct{} {
@@ -156,7 +152,12 @@ func getExecutablesFromPath() map[string]struct{} {
 
 }
 
-func (h *MainCommand) findMatches(prefix string) []string {
+func (h *MainCommand) findMatches(input string) []string {
+	prefix, start := lastToken(input)
+	if start != 0 {
+		return nil // only first token for now
+	}
+
 	var matches []string
 
 	// builtins first
@@ -167,7 +168,6 @@ func (h *MainCommand) findMatches(prefix string) []string {
 	}
 
 	if len(matches) > 0 {
-		sort.Strings(matches)
 		return matches
 	}
 
