@@ -116,13 +116,13 @@ func (h *MainCommand) readLineRaw() string {
 	}
 }
 
-func lastToken(input string) (prefix string, start int) {
+func lastToken(input []byte) (prefix string, start int) {
 	for i := len(input) - 1; i >= 0; i-- {
 		if input[i] == ' ' {
-			return input[i+1:], i + 1
+			return string(input[i+1:]), i + 1
 		}
 	}
-	return input, 0
+	return string(input), 0
 }
 
 func getExecutablesFromPath() map[string]struct{} {
