@@ -35,6 +35,10 @@ func (h *MainCommand) Register(
 }
 
 func (h *MainCommand) Handle(input string) {
+	h.isOutAppend = false
+	h.isErrAppend = false
+	h.outFile = ""
+	h.errFile = ""
 	args, err := extractArguments(input)
 	if err != nil {
 		return
@@ -185,7 +189,6 @@ func (m *MainCommand) extractRedirectionInfo(args []string) (
 	clean []string,
 	outFile string,
 	errFile string,
-
 ) {
 	for i := range args {
 		switch args[i] {
