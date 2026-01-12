@@ -12,11 +12,17 @@ import (
 type MainCommand struct {
 	commands map[string]func([]string) error
 	command  []byte
-	out      io.Writer
+	out      io.Writer // stdout
+	err      io.Writer // stderr
 
 	//isDump
 	isDump  bool
 	outFile string
+	errFile string
+
+	isOutRedirect bool // >
+	isErrRedirect bool // 2>
+
 }
 
 func (h *MainCommand) Register(
@@ -32,7 +38,7 @@ func (h *MainCommand) Handle(input string) {
 		return
 	}
 
-	args, h.outFile, h.isDump = extractRedirectionInfo(args)
+	args, h.outFile, h.errFile = extractRedirectionInfo(args)
 
 	cleanup, err := h.ApplyRedirection()
 	if err != nil {
@@ -53,13 +59,13 @@ func (h *MainCommand) Handle(input string) {
 
 	cmd := exec.Command(cmdName, cmdArgs...)
 	cmd.Stdout = h.out // ← key line
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = h.err
 
 	if err := cmd.Run(); err != nil {
 		var execErr *exec.Error
 		if errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound {
 			// Command does not exist
-			fmt.Fprintf(os.Stderr, "%s: command not found\n", cmdName)
+			fmt.Fprintf(h.err, "%s: command not found\n", cmdName)
 			return
 		}
 
@@ -71,7 +77,7 @@ func (h *MainCommand) Handle(input string) {
 		}
 
 		// Real execution failure (rare, but valid)
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(h.err, err)
 	}
 
 }
@@ -173,41 +179,66 @@ func extractArguments(input string) ([]string, error) {
 	return args, nil
 }
 
-func extractRedirectionInfo(args []string) (cleanArgs []string, outFile string, isDump bool) {
-	for i := range args {
-		if args[i] == ">" || args[i] == "1>" {
-			// Syntax error: no file after >
-			if i+1 >= len(args) {
-				return args, "", false
+func extractRedirectionInfo(args []string) (
+	clean []string,
+	outFile string,
+	errFile string,
+) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case ">", "1>":
+			if i+1 < len(args) {
+				outFile = args[i+1]
+				return args[:i], outFile, errFile
 			}
-
-			outFile = args[i+1]
-			isDump = true
-
-			// Everything before > is command args
-			cleanArgs = args[:i]
-			return cleanArgs, outFile, isDump
+		case "2>":
+			if i+1 < len(args) {
+				errFile = args[i+1]
+				return args[:i], outFile, errFile
+			}
 		}
 	}
-
-	// No redirection found
-	return args, "", false
+	return args, "", ""
 }
 
 func (h *MainCommand) ApplyRedirection() (func(), error) {
-	if !h.isDump || h.outFile == "" {
-		h.out = os.Stdout
-		return func() {}, nil
+	// reset defaults
+	h.out = os.Stdout
+	h.err = os.Stderr
+
+	var cleanup []func()
+
+	if h.outFile != "" {
+		f, err := os.OpenFile(
+			h.outFile,
+			os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
+			0644,
+		)
+		if err != nil {
+			return nil, err
+		}
+		h.out = f
+		cleanup = append(cleanup, func() { f.Close() })
 	}
 
-	f, err := os.OpenFile(h.outFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return nil, err
+	if h.errFile != "" {
+		f, err := os.OpenFile(
+			h.errFile,
+			os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
+			0644,
+		)
+		if err != nil {
+			return nil, err
+		}
+		h.err = f
+		cleanup = append(cleanup, func() { f.Close() })
 	}
 
-	h.out = f
 	return func() {
-		f.Close()
+		for _, fn := range cleanup {
+			fn()
+		}
 		h.out = os.Stdout
+		h.err = os.Stderr
 	}, nil
 }
