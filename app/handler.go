@@ -20,6 +20,7 @@ type MainCommand struct {
 	outFile string
 	errFile string
 
+	isOutAppend   bool // >>
 	isOutRedirect bool // >
 	isErrRedirect bool // 2>
 
@@ -38,7 +39,7 @@ func (h *MainCommand) Handle(input string) {
 		return
 	}
 
-	args, h.outFile, h.errFile = extractRedirectionInfo(args)
+	args, h.outFile, h.errFile, h.isOutAppend = extractRedirectionInfo(args)
 
 	cleanup, err := h.ApplyRedirection()
 	if err != nil {
@@ -183,22 +184,28 @@ func extractRedirectionInfo(args []string) (
 	clean []string,
 	outFile string,
 	errFile string,
+	isOutAppend bool,
 ) {
-	for i := 0; i < len(args); i++ {
+	for i := range args {
 		switch args[i] {
 		case ">", "1>":
 			if i+1 < len(args) {
 				outFile = args[i+1]
-				return args[:i], outFile, errFile
+				return args[:i], outFile, errFile, false
 			}
 		case "2>":
 			if i+1 < len(args) {
 				errFile = args[i+1]
-				return args[:i], outFile, errFile
+				return args[:i], outFile, errFile, false
+			}
+		case ">>", "1>>":
+			if i+1 < len(args) {
+				outFile = args[i+1]
+				return args[:i], outFile, errFile, true
 			}
 		}
 	}
-	return args, "", ""
+	return args, "", "", false
 }
 
 func (h *MainCommand) ApplyRedirection() (func(), error) {
@@ -208,10 +215,16 @@ func (h *MainCommand) ApplyRedirection() (func(), error) {
 
 	var cleanup []func()
 
+	flags := os.O_CREATE | os.O_WRONLY
+	if h.isOutAppend {
+		flags |= os.O_APPEND
+	} else {
+		flags |= os.O_TRUNC
+	}
 	if h.outFile != "" {
 		f, err := os.OpenFile(
 			h.outFile,
-			os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
+			flags,
 			0644,
 		)
 		if err != nil {
