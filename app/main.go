@@ -15,6 +15,7 @@ func main() {
 	handler := &MainCommand{
 		commands: make(map[string]func([]string) error),
 		out:      os.Stdout,
+		execs:    getExecutablesFromPath(),
 	}
 
 	handler.Register("exit", handler.exit)
@@ -97,12 +98,28 @@ func lastToken(input string) (prefix string, start int) {
 	return input, 0
 }
 
+func isFirstToken(input string, start int) bool {
+	for i := 0; i < start; i++ {
+		if input[i] != ' ' {
+			return false
+		}
+	}
+	return true
+}
+
 func (h *MainCommand) autocomplete(input string) string {
 	prefix, start := lastToken(input)
 	if prefix == "" {
 		return input
 	}
 
+	// Only first token gets command completion
+	if start != 0 {
+		fmt.Print("\x07")
+		return input
+	}
+
+	// 1️⃣ Builtins first
 	var match string
 	count := 0
 
@@ -110,16 +127,60 @@ func (h *MainCommand) autocomplete(input string) string {
 		if strings.HasPrefix(name, prefix) {
 			match = name
 			count++
-			if count > 1 {
-				return input // ambiguous → do nothing
-			}
 		}
 	}
 
 	if count == 1 {
-		// append a space after successful completion
-		return input[:start] + match + " "
+		return match + " "
+	}
+	if count > 1 {
+		return input
 	}
 
+	// 2️⃣ PATH executables only if no builtin matched
+	count = 0
+	for name := range h.execs {
+		if strings.HasPrefix(name, prefix) {
+			match = name
+			count++
+		}
+	}
+
+	if count == 1 {
+		return match + " "
+	}
+
+	fmt.Print("\x07")
 	return input
+}
+
+func getExecutablesFromPath() map[string]struct{} {
+	execs := make(map[string]struct{})
+
+	path := os.Getenv("PATH")
+	for _, dir := range strings.Split(path, ":") {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			// PATH may contain nonexistent dirs → ignore
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+
+			// Check executable bit
+			if info.Mode()&0111 != 0 {
+				execs[e.Name()] = struct{}{}
+			}
+		}
+
+	}
+	return execs
+
 }

@@ -12,8 +12,11 @@ import (
 type MainCommand struct {
 	commands map[string]func([]string) error
 	command  []byte
-	out      io.Writer // stdout
-	err      io.Writer // stderr
+
+	execs map[string]struct{}
+
+	out io.Writer // stdout
+	err io.Writer // stderr
 
 	//isDump
 	isDump  bool
