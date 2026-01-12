@@ -62,40 +62,45 @@ func (h *MainCommand) readLineRaw() string {
 			return string(buf)
 
 		case '\t':
-			old := string(buf)
-			matches := h.findMatches(old)
-			if len(matches) == 0 {
+			prefix, start := lastToken(buf)
+
+			// only complete first token in this stage
+			if start != 0 {
 				fmt.Print("\x07")
-				h.lastWasTab = false
 				break
 			}
 
-			if len(matches) == 1 {
-				newInput := matches[0] + " "
+			matches := h.findMatches(prefix)
 
+			if len(matches) == 0 {
+				fmt.Print("\x07")
+				break
+			}
+
+			// exactly one match → full completion + space
+			if len(matches) == 1 {
 				for range buf {
 					fmt.Print("\b \b")
 				}
-
-				buf = []byte(newInput)
-				fmt.Print(newInput)
-
-				h.lastWasTab = false
+				buf = []byte(matches[0] + " ")
+				fmt.Print(string(buf))
 				break
 			}
 
-			if h.lastWasTab {
-				// SECOND TAB → show options
-				fmt.Print("\r\n")
-				for _, m := range matches {
-					fmt.Print(m, "  ")
+			// multiple matches → LCP logic
+			lcp := longestCommonPrefix(matches)
+
+			if len(lcp) > len(prefix) {
+				for range buf {
+					fmt.Print("\b \b")
 				}
-				fmt.Print("\r\n$ ", string(buf))
-				h.lastWasTab = false
-			} else {
-				fmt.Print("\x07")
-				h.lastWasTab = true
+				buf = []byte(lcp)
+				fmt.Print(string(buf))
+				break
 			}
+
+			// ambiguous, no extension → bell or wait for TAB TAB
+			fmt.Print("\x07")
 
 		case 127: // Backspace
 			if len(buf) > 0 {
@@ -151,12 +156,7 @@ func getExecutablesFromPath() map[string]struct{} {
 
 }
 
-func (h *MainCommand) findMatches(input string) []string {
-	prefix, start := lastToken(input)
-	if start != 0 {
-		return nil // only first token for now
-	}
-
+func (h *MainCommand) findMatches(prefix string) []string {
 	var matches []string
 
 	// builtins first
@@ -167,6 +167,7 @@ func (h *MainCommand) findMatches(input string) []string {
 	}
 
 	if len(matches) > 0 {
+		sort.Strings(matches)
 		return matches
 	}
 
@@ -179,4 +180,23 @@ func (h *MainCommand) findMatches(input string) []string {
 
 	sort.Strings(matches)
 	return matches
+}
+
+func longestCommonPrefix(strs []string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+
+	prefix := strs[0]
+	for _, s := range strs[1:] {
+		i := 0
+		for i < len(prefix) && i < len(s) && prefix[i] == s[i] {
+			i++
+		}
+		prefix = prefix[:i]
+		if prefix == "" {
+			break
+		}
+	}
+	return prefix
 }
