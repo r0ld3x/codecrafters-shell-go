@@ -63,7 +63,9 @@ func (h *MainCommand) readLineRaw() string {
 
 		case '\t':
 			old := string(buf)
+			prefix, _ := lastToken(old)
 			matches := h.findMatches(old)
+
 			if len(matches) == 0 {
 				fmt.Print("\x07")
 				h.lastWasTab = false
@@ -84,6 +86,18 @@ func (h *MainCommand) readLineRaw() string {
 				break
 			}
 
+			lcp := longestCommonPrefix(matches)
+			if len(lcp) > len(prefix) {
+				for range buf {
+					fmt.Print("\b \b")
+				}
+				buf = []byte(lcp)
+				fmt.Print(lcp)
+				h.lastWasTab = false
+				break
+			}
+
+			// multiple matches, no LCP extension
 			if h.lastWasTab {
 				fmt.Print("\r\n")
 				for _, m := range matches {
@@ -92,8 +106,6 @@ func (h *MainCommand) readLineRaw() string {
 				fmt.Print("\r\n$ ", string(buf))
 				h.lastWasTab = false
 			} else {
-				lcp := longestCommonPrefix(matches)
-				fmt.Println(lcp)
 				fmt.Print("\x07")
 				h.lastWasTab = true
 			}
@@ -195,7 +207,7 @@ func longestCommonPrefix(strs []string) string {
 		}
 		prefix = prefix[:i]
 		if prefix == "" {
-			break
+			return ""
 		}
 	}
 	return prefix
