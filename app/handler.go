@@ -28,6 +28,7 @@ type MainCommand struct {
 	isOutRedirect bool // >
 	isErrRedirect bool // 2>
 
+	lastWasTab bool
 }
 
 func (h *MainCommand) Register(

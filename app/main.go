@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"golang.org/x/term"
@@ -62,19 +63,39 @@ func (h *MainCommand) readLineRaw() string {
 
 		case '\t':
 			old := string(buf)
-			newInput := h.autocomplete(old)
-
-			if newInput == old {
+			matches := h.findMatches(old)
+			if len(matches) == 0 {
 				fmt.Print("\x07")
+				h.lastWasTab = false
 				break
 			}
 
-			for range buf {
-				fmt.Print("\b \b")
+			if len(matches) == 1 {
+				newInput := matches[0] + " "
+
+				for range buf {
+					fmt.Print("\b \b")
+				}
+
+				buf = []byte(newInput)
+				fmt.Print(newInput)
+
+				h.lastWasTab = false
+				break
 			}
 
-			buf = []byte(newInput)
-			fmt.Print(newInput)
+			if h.lastWasTab {
+				// SECOND TAB → show options
+				fmt.Print("\r\n")
+				for _, m := range matches {
+					fmt.Print(m, "  ")
+				}
+				fmt.Print("\r\n$ ", string(buf))
+				h.lastWasTab = false
+			} else {
+				fmt.Print("\x07")
+				h.lastWasTab = true
+			}
 
 		case 127: // Backspace
 			if len(buf) > 0 {
@@ -83,6 +104,7 @@ func (h *MainCommand) readLineRaw() string {
 			}
 
 		default:
+			h.lastWasTab = false
 			buf = append(buf, b[0])
 			fmt.Print(string(b[0]))
 		}
@@ -96,62 +118,6 @@ func lastToken(input string) (prefix string, start int) {
 		}
 	}
 	return input, 0
-}
-
-func isFirstToken(input string, start int) bool {
-	for i := 0; i < start; i++ {
-		if input[i] != ' ' {
-			return false
-		}
-	}
-	return true
-}
-
-func (h *MainCommand) autocomplete(input string) string {
-	prefix, start := lastToken(input)
-	if prefix == "" {
-		return input
-	}
-
-	// Only first token gets command completion
-	if start != 0 {
-		fmt.Print("\x07")
-		return input
-	}
-
-	// 1️⃣ Builtins first
-	var match string
-	count := 0
-
-	for name := range h.commands {
-		if strings.HasPrefix(name, prefix) {
-			match = name
-			count++
-		}
-	}
-
-	if count == 1 {
-		return match + " "
-	}
-	if count > 1 {
-		return input
-	}
-
-	// 2️⃣ PATH executables only if no builtin matched
-	count = 0
-	for name := range h.execs {
-		if strings.HasPrefix(name, prefix) {
-			match = name
-			count++
-		}
-	}
-
-	if count == 1 {
-		return match + " "
-	}
-
-	fmt.Print("\x07")
-	return input
 }
 
 func getExecutablesFromPath() map[string]struct{} {
@@ -183,4 +149,34 @@ func getExecutablesFromPath() map[string]struct{} {
 	}
 	return execs
 
+}
+
+func (h *MainCommand) findMatches(input string) []string {
+	prefix, start := lastToken(input)
+	if start != 0 {
+		return nil // only first token for now
+	}
+
+	var matches []string
+
+	// builtins first
+	for name := range h.commands {
+		if strings.HasPrefix(name, prefix) {
+			matches = append(matches, name)
+		}
+	}
+
+	if len(matches) > 0 {
+		return matches
+	}
+
+	// then PATH executables
+	for name := range h.execs {
+		if strings.HasPrefix(name, prefix) {
+			matches = append(matches, name)
+		}
+	}
+
+	sort.Strings(matches)
+	return matches
 }
